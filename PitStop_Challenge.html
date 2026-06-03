@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta charset="UTF-8">
+  <script src="webgl-utils.js"></script>
+  <script src="MV.js"></script>
+  <title>PitStop Challenge – F1 Pit Garage</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      overflow: hidden;
+      font-family: 'Courier New', monospace;
+    }
+
+    #glCanvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #hud {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      color: #fff;
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+    }
+
+    #crosshair::before,
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255, 200, 0, 0.9);
+    }
+
+    #crosshair::before {
+      width: 2px;
+      height: 20px;
+      left: 9px;
+      top: 0;
+    }
+
+    #crosshair::after {
+      width: 20px;
+      height: 2px;
+      top: 9px;
+      left: 0;
+    }
+
+    /* Top bar */
+    #topbar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), transparent);
+      padding: 14px 24px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    #title-block {
+      line-height: 1.2;
+    }
+
+    #title-block .team {
+      font-size: 11px;
+      letter-spacing: 4px;
+      color: #e10600;
+      text-transform: uppercase;
+    }
+
+    #title-block .name {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #fff;
+    }
+
+    #status-block {
+      text-align: right;
+    }
+
+    #status-msg {
+      font-size: 13px;
+      color: #ffcc00;
+      letter-spacing: 1px;
+      min-height: 18px;
+    }
+
+    #mode-label {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 3px;
+      letter-spacing: 2px;
+    }
+
+    #big-timer {
+      position: absolute;
+      top: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 72px;
+      font-weight: bold;
+      color: #ff4444;
+      font-family: monospace;
+      text-shadow: 3px 3px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+      display: none;
+      z-index: 100;
+      letter-spacing: 5px;
+    }
+
+    /* Bottom HUD */
+    #bottomhud {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+      padding: 20px 24px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .hud-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .hud-label {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: #e10600;
+      text-transform: uppercase;
+    }
+
+    .hud-value {
+      font-size: 13px;
+      color: #fff;
+      letter-spacing: 1px;
+    }
+
+    /* Progress panel */
+    #progress-panel {
+      position: absolute;
+      top: 50%;
+      right: 20px;
+      transform: translateY(-50%);
+      background: rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(225, 6, 0, 0.4);
+      border-radius: 4px;
+      padding: 12px 16px;
+      min-width: 160px;
+    }
+
+    #progress-panel h3 {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: #e10600;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 6px;
+      transition: color 0.3s;
+    }
+
+    .task-item.done {
+      color: #4caf50;
+    }
+
+    .task-item .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+
+    .task-item.done .dot {
+      background: #4caf50;
+    }
+
+    /* Controls panel */
+    #controls {
+      position: absolute;
+      bottom: 80px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      padding: 10px 14px;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.55);
+      line-height: 1.9;
+    }
+
+    #controls span {
+      color: rgba(255, 204, 0, 0.85);
+    }
+
+    /* DRS indicator */
+    #drs-indicator {
+      position: absolute;
+      top: 50%;
+      left: 20px;
+      transform: translateY(-50%);
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: rgba(255, 255, 255, 0.15);
+      transition: color 0.2s, text-shadow 0.2s;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+    }
+
+    #drs-indicator.active {
+      color: #00e676;
+      text-shadow: 0 0 20px #00e676, 0 0 40px #00e67660;
+    }
+
+    /* Carried item indicator */
+    #carry-indicator {
+      position: absolute;
+      bottom: 90px;
+      right: 20px;
+      display: none;
+      background: rgba(225, 6, 0, 0.15);
+      border: 1px solid rgba(225, 6, 0, 0.5);
+      border-radius: 4px;
+      padding: 8px 14px;
+      font-size: 11px;
+      color: #ff6b6b;
+      letter-spacing: 2px;
+    }
+
+    /* Cockpit overlay */
+    #cockpit-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(ellipse at 50% 80%, transparent 30%, rgba(0, 0, 0, 0.85) 100%);
+      opacity: 0;
+      transition: opacity 0.4s;
+      pointer-events: none;
+    }
+
+    #cockpit-overlay.active {
+      opacity: 1;
+    }
+
+    /* Lock prompt */
+    #lock-prompt {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid rgba(225, 6, 0, 0.5);
+      border-radius: 8px;
+      padding: 30px 40px;
+    }
+
+    #lock-prompt h2 {
+      font-size: 20px;
+      letter-spacing: 3px;
+      color: #e10600;
+      margin-bottom: 8px;
+    }
+
+    #lock-prompt p {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 16px;
+    }
+
+    #lock-prompt button {
+      background: #e10600;
+      color: #fff;
+      border: none;
+      padding: 10px 28px;
+      font-size: 13px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      border-radius: 3px;
+      pointer-events: all;
+      font-family: 'Courier New', monospace;
+    }
+
+    #lock-prompt button:hover {
+      background: #ff1a0e;
+    }
+
+    /* Light brightness bar */
+    #light-bar {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) translateY(60px);
+      width: 120px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      display: none;
+    }
+
+    #light-bar-fill {
+      height: 100%;
+      background: #ffcc00;
+      border-radius: 2px;
+      transition: width 0.1s;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="glCanvas" width="1536" height="703"></canvas>
+
+  <div id="hud">
+    <div id="crosshair"></div>
+
+    <div id="topbar">
+      <div id="title-block">
+        <div class="team">Formula 1 · Pit Garage Simulation</div>
+        <div class="name">PITSTOP CHALLENGE</div>
+      </div>
+      <div id="status-block">
+        <div id="status-msg">Click to start</div>
+        <div id="mode-label">FREE ROAM</div>
+      </div>
+    </div>
+
+    <div id="drs-indicator">DRS</div>
+
+    <div id="big-timer">0.00s</div>
+
+    <div id="progress-panel">
+      <h3>Pit Tasks</h3>
+      <div class="task-item" id="task-fl">
+        <div class="dot"></div>Front-Left Tire
+      </div>
+      <div class="task-item" id="task-fr">
+        <div class="dot"></div>Front-Right Tire
+      </div>
+      <div class="task-item" id="task-rl">
+        <div class="dot"></div>Rear-Left Tire
+      </div>
+      <div class="task-item" id="task-rr">
+        <div class="dot"></div>Rear-Right Tire
+      </div>
+      <div class="task-item" id="task-wing">
+        <div class="dot"></div>Front Wing
+      </div>
+    </div>
+
+    <div id="carry-indicator">⬆ CARRYING COMPONENT</div>
+
+    <div id="cockpit-overlay"></div>
+
+    <div id="controls">
+      <span>WASD</span> Move / Steer &nbsp; <span>Mouse</span> Look<br>
+      <span>Space/Shift</span> Up / Down<br>
+      <span>E</span> Pick up / Attach &nbsp; <span>G</span> Drop<br>
+      <span>C</span> Cockpit view &nbsp; <span>X</span> Toggle DRS<br>
+      <span>Q/R</span> Change Brightness of The Flashlight
+    </div>
+
+    <div id="bottomhud">
+      <div class="hud-group">
+        <div class="hud-label">Position</div>
+        <div class="hud-value" id="hud-pos">-0.0, 1.7, 5.0</div>
+      </div>
+      <div class="hud-group" style="text-align:center;">
+        <div class="hud-label">Steering</div>
+        <div class="hud-value" id="hud-steer">0°</div>
+      </div>
+      <div class="hud-group" style="text-align:right;">
+        <div class="hud-label">Light Power</div>
+        <div class="hud-value" id="hud-light">40%</div>
+      </div>
+    </div>
+
+    <div id="lock-prompt" style="display: flex;">
+      <h2>PITSTOP CHALLENGE</h2>
+      <p>Replace all components. Be quick.</p>
+      <button onclick="startGame()">ENTER GARAGE</button>
+    </div>
+
+    <div id="light-bar">
+      <div id="light-bar-fill" style="width: 40%;"></div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('glCanvas');
+    const gl = canvas.getContext('webgl', { antialias: true, depth: true });
+    if (!gl) { alert('WebGL not supported'); }
+    const uint32ext = gl.getExtension('OES_element_index_uint');
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ─── SHADERS ───────────────────────────────────────────────────────────────
+    const VS_SRC = `
+attribute vec3 aPos;
+attribute vec3 aNormal;
+attribute vec2 aUV;
+
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProj;
+uniform mat3 uNormalMat;
+
+varying vec3 vWorldPos;
+varying vec3 vNormal;
+varying vec2 vUV;
+
+void main() {
+  vec4 world = uModel * vec4(aPos, 1.0);
+  vWorldPos  = world.xyz;
+  vNormal    = uNormalMat * aNormal;
+  vUV        = aUV;
+  gl_Position = uProj * uView * world;
+}
+`;
+
+    const FS_SRC = `
+precision mediump float;
+
+varying vec3 vWorldPos;
+varying vec3 vNormal;
+varying vec2 vUV;
+
+uniform vec3  uLightPos;
+uniform float uLightPower;
+uniform vec3  uSpotDir;
+uniform float uSpotCutoff;
+uniform float uSpotOuter;
+uniform int   uSpotOn;
+uniform vec3  uLight2Pos;
+uniform float uLight2Power;
+uniform vec3  uCamPos;
+uniform vec4  uColor;
+uniform sampler2D uTex;
+uniform int   uUseTex;
+uniform float uShiny;
+uniform int   uIsShadow;
+
+void main() {
+  vec3 N = normalize(vNormal);
+  vec3 V = normalize(uCamPos - vWorldPos);
+
+  vec3 toFrag1 = uLightPos - vWorldPos;
+  vec3 L1 = normalize(toFrag1);
+  vec3 H1 = normalize(L1 + V);
+  float d1    = length(toFrag1);
+  float at1   = uLightPower / (1.0 + 0.05*d1 + 0.02*d1*d1);
+  float diff1 = max(dot(N, L1), 0.0);
+  float spec1 = pow(max(dot(N, H1), 0.0), uShiny);
+
+  float spotFactor = 1.0;
+  if (uSpotOn == 1) {
+    float cosAngle = dot(-L1, normalize(uSpotDir));
+    spotFactor = clamp((cosAngle - uSpotOuter) / (uSpotCutoff - uSpotOuter), 0.0, 1.0);
+    spotFactor = spotFactor * spotFactor;
+  }
+  diff1 *= spotFactor;
+  spec1 *= spotFactor;
+  at1   *= spotFactor;
+
+  vec3 L2 = normalize(uLight2Pos - vWorldPos);
+  vec3 H2 = normalize(L2 + V);
+  float d2    = length(uLight2Pos - vWorldPos);
+  float at2   = uLight2Power / (1.0 + 0.04*d2 + 0.008*d2*d2);
+  float diff2 = max(dot(N, L2), 0.0);
+  float spec2 = pow(max(dot(N, H2), 0.0), uShiny * 0.4);
+
+  float spot2Factor = smoothstep(0.2, 0.6, L2.y);
+  diff2 *= spot2Factor;
+  spec2 *= spot2Factor;
+  at2   *= spot2Factor;
+
+  float amb = 0.30;
+
+  vec4 baseColor = (uUseTex == 1) ? texture2D(uTex, vUV) : uColor;
+
+  if (uIsShadow == 1) {
+    gl_FragColor = baseColor;
+    return;
+  }
+
+  vec3 col = baseColor.rgb * (amb + diff1 * at1 + diff2 * at2)
+           + vec3(1.00, 0.98, 0.95) * spec1 * at1 * 0.45
+           + vec3(1.00, 0.92, 0.75) * spec2 * at2 * 0.25;
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), baseColor.a);
+}
+`;
+
+    function compileShader(type, src) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+        console.error(gl.getShaderInfoLog(s));
+      return s;
+    }
+    const prog = gl.createProgram();
+    gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, VS_SRC));
+    gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, FS_SRC));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+
+    const loc = {
+      aPos: gl.getAttribLocation(prog, 'aPos'),
+      aNormal: gl.getAttribLocation(prog, 'aNormal'),
+      aUV: gl.getAttribLocation(prog, 'aUV'),
+      uModel: gl.getUniformLocation(prog, 'uModel'),
+      uView: gl.getUniformLocation(prog, 'uView'),
+      uProj: gl.getUniformLocation(prog, 'uProj'),
+      uNormalMat: gl.getUniformLocation(prog, 'uNormalMat'),
+      uLightPos: gl.getUniformLocation(prog, 'uLightPos'),
+      uLightPow: gl.getUniformLocation(prog, 'uLightPower'),
+      uSpotDir: gl.getUniformLocation(prog, 'uSpotDir'),
+      uSpotCutoff: gl.getUniformLocation(prog, 'uSpotCutoff'),
+      uSpotOuter: gl.getUniformLocation(prog, 'uSpotOuter'),
+      uSpotOn: gl.getUniformLocation(prog, 'uSpotOn'),
+      uLight2Pos: gl.getUniformLocation(prog, 'uLight2Pos'),
+      uLight2Pow: gl.getUniformLocation(prog, 'uLight2Power'),
+      uCamPos: gl.getUniformLocation(prog, 'uCamPos'),
+      uColor: gl.getUniformLocation(prog, 'uColor'),
+      uTex: gl.getUniformLocation(prog, 'uTex'),
+      uUseTex: gl.getUniformLocation(prog, 'uUseTex'),
+      uShiny: gl.getUniformLocation(prog, 'uShiny'),
+      uIsShadow: gl.getUniformLocation(prog, 'uIsShadow'),
+    };
+
+    // MV.js uyumlu Shadow Matrix hesaplayıcı
+    function makeShadowMatrix(lx, ly, lz, planeY) {
+      const d = -planeY;
+      const dot = ly + d;
+      var res = mat4();
+      res[0][0] = dot; res[0][1] = -lx; res[0][2] = 0; res[0][3] = -lx * d;
+      res[1][0] = 0; res[1][1] = dot - ly; res[1][2] = 0; res[1][3] = -ly * d;
+      res[2][0] = 0; res[2][1] = -lz; res[2][2] = dot; res[2][3] = -lz * d;
+      res[3][0] = 0; res[3][1] = -1; res[3][2] = 0; res[3][3] = dot;
+      return res;
+    }
+
+    // ─── GEOMETRY HELPERS ──────────────────────────────────────────────────────
+    function createBuffer(data) {
+      const b = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+      return b;
+    }
+    function createIndexBuffer(data) {
+      const b = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(data), gl.STATIC_DRAW);
+      return b;
+    }
+
+    function buildBox(w, h, d) {
+      const hx = w / 2, hy = h / 2, hz = d / 2;
+      const verts = [], idx = [];
+      const faces = [
+        [[[hx, -hy, -hz], [-hx, -hy, -hz], [-hx, hy, -hz], [hx, hy, -hz]], [0, 0, -1]],
+        [[[-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz]], [0, 0, 1]],
+        [[[-hx, -hy, hz], [-hx, hy, hz], [-hx, hy, -hz], [-hx, -hy, -hz]], [-1, 0, 0]],
+        [[[hx, -hy, -hz], [hx, hy, -hz], [hx, hy, hz], [hx, -hy, hz]], [1, 0, 0]],
+        [[[-hx, -hy, -hz], [hx, -hy, -hz], [hx, -hy, hz], [-hx, -hy, hz]], [0, -1, 0]],
+        [[[-hx, hy, hz], [hx, hy, hz], [hx, hy, -hz], [-hx, hy, -hz]], [0, 1, 0]],
+      ];
+      const uvs = [[0, 0], [1, 0], [1, 1], [0, 1]];
+      faces.forEach(([pts, n]) => {
+        const base = verts.length / 8;
+        pts.forEach((p, i) => {
+          verts.push(...p, ...n, ...uvs[i]);
+        });
+        idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      });
+      return { vBuf: createBuffer(verts), iBuf: createIndexBuffer(idx), count: idx.length };
+    }
+
+    function buildCylinder(r, h, segs, caps = true) {
+      const verts = [], idx = [];
+      const step = (Math.PI * 2) / segs;
+      for (let i = 0; i <= segs; i++) {
+        const a = i * step;
+        const x = Math.cos(a), z = Math.sin(a);
+        verts.push(x * r, 0, z * r, x, 0, z, i / segs, 0);
+        verts.push(x * r, h, z * r, x, 0, z, i / segs, 1);
+      }
+      for (let i = 0; i < segs; i++) {
+        const b = i * 2;
+        idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+      }
+      if (caps) {
+        const bc = verts.length / 8;
+        verts.push(0, 0, 0, 0, -1, 0, 0.5, 0.5);
+        for (let i = 0; i < segs; i++) {
+          const a = i * step, a2 = (i + 1) * step;
+          const vi = verts.length / 8;
+          verts.push(Math.cos(a) * r, 0, Math.sin(a) * r, 0, -1, 0, (Math.cos(a) + 1) / 2, (Math.sin(a) + 1) / 2);
+          verts.push(Math.cos(a2) * r, 0, Math.sin(a2) * r, 0, -1, 0, (Math.cos(a2) + 1) / 2, (Math.sin(a2) + 1) / 2);
+          idx.push(bc, vi, vi + 1);
+        }
+        const tc = verts.length / 8;
+        verts.push(0, h, 0, 0, 1, 0, 0.5, 0.5);
+        for (let i = 0; i < segs; i++) {
+          const a = i * step, a2 = (i + 1) * step;
+          const vi = verts.length / 8;
+          verts.push(Math.cos(a) * r, h, Math.sin(a) * r, 0, 1, 0, (Math.cos(a) + 1) / 2, (Math.sin(a) + 1) / 2);
+          verts.push(Math.cos(a2) * r, h, Math.sin(a2) * r, 0, 1, 0, (Math.cos(a2) + 1) / 2, (Math.sin(a2) + 1) / 2);
+          idx.push(tc, vi + 1, vi);
+        }
+      }
+      return { vBuf: createBuffer(verts), iBuf: createIndexBuffer(idx), count: idx.length };
+    }
+
+    // ─── PROCEDURAL TEXTURES ───────────────────────────────────────────────────
+    function makeTexture(fn, size = 128) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      fn(ctx, size);
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      return tex;
+    }
+
+    const texCarbonFiber = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#151515'; ctx.fillRect(0, 0, sz, sz);
+      const size = sz / 32;
+      for (let y = 0; y < sz; y += size) {
+        for (let x = 0; x < sz; x += size) {
+          const isEven = ((x / size) + (y / size)) % 2 === 0;
+          const g = ctx.createLinearGradient(x, y, x + size, y + size);
+          g.addColorStop(0, isEven ? '#282828' : '#1f1f1f');
+          g.addColorStop(0.5, isEven ? '#383838' : '#1a1a1a');
+          g.addColorStop(1, isEven ? '#151515' : '#262626');
+          ctx.fillStyle = g; ctx.fillRect(x, y, size, size);
+          ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 0.5;
+          ctx.strokeRect(x, y, size, size);
+        }
+      }
+    }, 256);
+
+    const texRubber = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#151515'; ctx.fillRect(0, 0, sz, sz);
+      ctx.fillStyle = 'rgba(60,60,60,0.2)';
+      for (let i = 0; i < 600; i++) {
+        ctx.fillRect(Math.random() * sz, Math.random() * sz, 2, Math.random() * 6);
+      }
+      ctx.fillStyle = '#e10600';
+      ctx.fillRect(0, sz * 0.08, sz, sz * 0.06);
+      ctx.fillRect(0, sz * 0.86, sz, sz * 0.06);
+      for (let i = 0; i < 4; i++) {
+        let x = i * (sz / 4) + sz / 16;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold ' + (sz * 0.05) + 'px Arial';
+        ctx.fillText('SOFT', x, sz * 0.125);
+        ctx.fillText('SOFT', x, sz * 0.905);
+      }
+    });
+
+    const texConcrete = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#2a2a2a'; ctx.fillRect(0, 0, sz, sz);
+      for (let i = 0; i < 3000; i++) {
+        const x = Math.random() * sz, y = Math.random() * sz;
+        ctx.fillStyle = `rgba(${Math.random() * 30 + 30},${Math.random() * 30 + 30},${Math.random() * 40 + 60},0.3)`;
+        ctx.fillRect(x, y, Math.random() * 3, Math.random() * 3);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1;
+      for (let x = 0; x < sz; x += 32) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, sz); ctx.stroke();
+      }
+    });
+
+    const texGrass = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, sz, sz);
+      for (let i = 0; i < 4000; i++) {
+        const x = Math.random() * sz, y = Math.random() * sz;
+        ctx.fillStyle = `rgba(${30 + Math.random() * 40},${100 + Math.random() * 60},${30 + Math.random() * 40},0.8)`;
+        ctx.fillRect(x, y, 3, 8 + Math.random() * 6);
+      }
+    });
+
+    const texMetal = makeTexture((ctx, sz) => {
+      const g = ctx.createLinearGradient(0, 0, sz, sz);
+      g.addColorStop(0, '#888'); g.addColorStop(0.3, '#bbb');
+      g.addColorStop(0.5, '#999'); g.addColorStop(0.7, '#ddd');
+      g.addColorStop(1, '#aaa');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, sz, sz);
+      for (let i = 0; i < 200; i++) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = Math.random() * 2;
+        ctx.beginPath(); ctx.moveTo(Math.random() * sz, 0); ctx.lineTo(Math.random() * sz, sz); ctx.stroke();
+      }
+    });
+
+    const texWall = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#3a3a4a'; ctx.fillRect(0, 0, sz, sz);
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2;
+      for (let y = 0; y < sz; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(sz, y); ctx.stroke(); }
+      for (let x = 0; x < sz; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, sz); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(225,6,0,0.3)'; ctx.fillRect(0, sz - 8, sz, 8);
+    }, 256);
+
+    const texRed = makeTexture((ctx, sz) => {
+      const g = ctx.createLinearGradient(0, 0, sz, 0);
+      g.addColorStop(0, '#700000');
+      g.addColorStop(0.2, '#b00000');
+      g.addColorStop(0.5, '#d10500');
+      g.addColorStop(0.8, '#b00000');
+      g.addColorStop(1, '#ff1010');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, sz, sz);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      for (let i = 0; i < 2000; i++) {
+        ctx.fillRect(Math.random() * sz, Math.random() * sz, 1, 1);
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      for (let x = 0; x < sz; x += 16) { ctx.fillRect(x, 0, 8, sz); }
+    }, 256);
+
+    const texYellow = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#ffcc00'; ctx.fillRect(0, 0, sz, sz);
+      ctx.fillStyle = 'rgba(0,0,0,0.1)';
+      for (let i = 0; i < 500; i++) {
+        ctx.fillRect(Math.random() * sz, Math.random() * sz, Math.random() * 4, Math.random() * 4);
+      }
+    });
+
+    const texAsphalt = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#222'; ctx.fillRect(0, 0, sz, sz);
+      for (let i = 0; i < 4000; i++) {
+        const x = Math.random() * sz, y = Math.random() * sz;
+        ctx.fillStyle = `rgba(${30 + Math.random() * 30},${30 + Math.random() * 30},${30 + Math.random() * 30},0.5)`;
+        ctx.fillRect(x, y, Math.random() * 3, Math.random() * 3);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 3;
+      ctx.setLineDash([sz / 6, sz / 6]);
+      ctx.beginPath(); ctx.moveTo(sz / 2, 0); ctx.lineTo(sz / 2, sz); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2;
+      ctx.strokeRect(4, 4, sz - 8, sz - 8);
+    }, 256);
+
+    const texStand = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#4a4a5a'; ctx.fillRect(0, 0, sz, sz);
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const colors = ['#c00', '#e10600', '#fff', '#1a1a2a', '#3a3a4a'];
+          ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+          ctx.fillRect(col * (sz / 8) + 1, row * (sz / 8) + 2, sz / 8 - 2, sz / 8 - 3);
+        }
+      }
+    }, 256);
+
+    const texScreen = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, sz, sz);
+      ctx.fillStyle = '#00ff41';
+      ctx.font = `bold ${sz / 10}px monospace`;
+      const lines = ['TIRE TEMP: 95°C', 'LAP: 23/58', 'GAP: +1.4s', 'FUEL: 78%', 'DRS: READY', 'ERS: 100%', 'RPM: 11800', 'SPEED: 0'];
+      lines.forEach((l, i) => ctx.fillText(l, sz * 0.05, sz * 0.12 + i * (sz / 8.5)));
+    }, 256);
+
+    const texWhiteboard = makeTexture((ctx, sz) => {
+      ctx.fillStyle = '#eef'; ctx.fillRect(0, 0, sz, sz);
+      ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2; ctx.strokeRect(0, 0, sz, sz);
+      ctx.fillStyle = '#333'; ctx.font = `bold ${sz / 10}px Arial`;
+      ctx.fillText('PIT STRATEGY', sz * 0.08, sz * 0.15);
+      ctx.font = `${sz / 12}px Arial`;
+      const items = ['LAP 20: SOFT', 'LAP 38: MED', 'UNDERCUT P2', 'WATCH FUEL', 'TARGET: P1'];
+      items.forEach((t, i) => { ctx.fillStyle = i < 2 ? '#e10600' : '#000'; ctx.fillText(t, sz * 0.08, sz * 0.3 + i * (sz * 0.14)); });
+    }, 256);
+
+    const MESH = {
+      box: buildBox(1, 1, 1),
+      tire: buildCylinder(0.45, 0.50, 32),
+      cylinder: buildCylinder(1, 1, 16),
+    };
+
+    // ─── DRAW PRIMITIVE ────────────────────────────────────────────────────────
+    function bindMesh(mesh) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vBuf);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.iBuf);
+      const stride = 8 * 4;
+      gl.vertexAttribPointer(loc.aPos, 3, gl.FLOAT, false, stride, 0);
+      gl.vertexAttribPointer(loc.aNormal, 3, gl.FLOAT, false, stride, 12);
+      gl.vertexAttribPointer(loc.aUV, 2, gl.FLOAT, false, stride, 24);
+      gl.enableVertexAttribArray(loc.aPos);
+      gl.enableVertexAttribArray(loc.aNormal);
+      gl.enableVertexAttribArray(loc.aUV);
+    }
+
+    function drawMesh(mesh, model, color, tex, shiny = 32, isShadow = 0) {
+      gl.uniformMatrix4fv(loc.uModel, false, flatten(model));
+      let nMat = normalMatrix(model, true);
+      gl.uniformMatrix3fv(loc.uNormalMat, false, flatten(nMat));
+      gl.uniform1i(loc.uIsShadow, isShadow);
+      if (color) {
+        gl.uniform4fv(loc.uColor, color);
+        gl.uniform1i(loc.uUseTex, 0);
+      } else {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.uniform1i(loc.uTex, 0);
+        gl.uniform1i(loc.uUseTex, 1);
+      }
+      gl.uniform1f(loc.uShiny, shiny);
+      bindMesh(mesh);
+      const indexType = mesh.use32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
+      gl.drawElements(gl.TRIANGLES, mesh.count, indexType, 0);
+    }
+
+    function drawPart(mesh, tx, ty, tz, sx, sy, sz, color, tex, shiny = 32) {
+      let m = mat4();
+      m = mult(m, translate(tx, ty, tz));
+      m = mult(m, scale(sx, sy, sz));
+      drawMesh(mesh, m, color, tex, shiny);
+    }
+
+    function drawShadow(mesh, model) {
+      const [lx, ly, lz] = overheadLightPos;
+      const shadowMat = makeShadowMatrix(lx, ly, lz, 0.03);
+      const finalM = mult(shadowMat, model);
+
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.disable(gl.CULL_FACE);
+
+      drawMesh(mesh, finalM, [0.03, 0.03, 0.04, 0.65], null, 1, 1);
+
+      gl.enable(gl.CULL_FACE);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
+
+    // ─── SCENE OBJECTS ─────────────────────────────────────────────────────────
+    const CAR = { x: 0, y: 0.14, z: 50 };
+    let carEntryZ = 50;
+    let carEntryDone = false;
+    let carCallTriggered = false;
+    let carExitTriggered = false;
+    let pitStartTime = 0;
+    let pitTimerRunning = false;
+    let pitFinalTime = 0;
+    const CAR_STOP_Z = 0;
+    const CAR_BUTTON_POS = { x: 10.0, y: 1.5, z: -8.9 };
+
+    const HUBS = [
+      { id: 'fl', x: -1.0, y: 0.45, z: -2.0, attachedItem: null },
+      { id: 'fr', x: 1.0, y: 0.45, z: -2.0, attachedItem: null },
+      { id: 'rl', x: -1.0, y: 0.45, z: 1.8, attachedItem: null },
+      { id: 'rr', x: 1.0, y: 0.45, z: 1.8, attachedItem: null }
+    ];
+
+    const WING_HUB = { attachedItem: null };
+
+    let items = [
+      { id: 'tire_old_fl', type: 'tire', label: 'Old Tire FL', tex: texRubber, carried: false, attached: true, vy: 0, vx: 0, vz: 0, x: -99, y: 0, z: 0 },
+      { id: 'tire_old_fr', type: 'tire', label: 'Old Tire FR', tex: texRubber, carried: false, attached: true, vy: 0, vx: 0, vz: 0, x: -99, y: 0, z: 0 },
+      { id: 'tire_old_rl', type: 'tire', label: 'Old Tire RL', tex: texRubber, carried: false, attached: true, vy: 0, vx: 0, vz: 0, x: -99, y: 0, z: 0 },
+      { id: 'tire_old_rr', type: 'tire', label: 'Old Tire RR', tex: texRubber, carried: false, attached: true, vy: 0, vx: 0, vz: 0, x: -99, y: 0, z: 0 },
+      { id: 'tire_new_1', type: 'tire', label: 'New Tire', x: 14.8, y: 0.45, z: -5.5, tex: texRubber, carried: false, attached: false, vy: 0, vx: 0, vz: 0 },
+      { id: 'tire_new_2', type: 'tire', label: 'New Tire', x: 14.8, y: 0.45, z: -6.5, tex: texRubber, carried: false, attached: false, vy: 0, vx: 0, vz: 0 },
+      { id: 'tire_new_3', type: 'tire', label: 'New Tire', x: 14.8, y: 0.45, z: -7.5, tex: texRubber, carried: false, attached: false, vy: 0, vx: 0, vz: 0 },
+      { id: 'tire_new_4', type: 'tire', label: 'New Tire', x: 14.8, y: 0.45, z: -8.5, tex: texRubber, carried: false, attached: false, vy: 0, vx: 0, vz: 0 },
+      { id: 'wing_old', type: 'wing', label: 'Old Front Wing', x: -99, y: 0.1, z: 0, tex: texCarbonFiber, carried: false, attached: true, vy: 0, vx: 0, vz: 0 },
+      { id: 'wing_new', type: 'wing', label: 'New Front Wing', x: 12.0, y: 0.10, z: 7.0, tex: texCarbonFiber, carried: false, attached: false, vy: 0, vx: 0, vz: 0 },
+      { id: 'worklight', type: 'worklight', label: 'flashlight', x: 15.0, y: 0.6, z: -2.0, tex: texMetal, carried: false, attached: false, vy: 0, vx: 0, vz: 0 }
+    ];
+    let wingAttached = false;
+    const components = items;
+
+    const overheadLightPos = [12.5, 5.8, 0.0];
+    let overheadLightPower = 1.4;
+    let worklightOn = false;
+    let spotOn = 0;
+
+    const cam = { x: 12.5, y: 1.7, z: 0, yaw: Math.PI, pitch: 0 };
+    const keys = {};
+    let locked = false;
+    let cockpitMode = false;
+    let steerAngle = 0;
+    let drsOpen = false;
+    let drsFlap = 0;
+    let lightPos = [0, 5.5, 0];
+    let lightPower = 1.5;
+    let flashlightPower = 4.5;
+    let carryItem = null;
+
+    document.addEventListener('keydown', e => { keys[e.code] = true; onKeyDown(e.code); });
+    document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    function onKeyDown(code) {
+      if (!locked) return;
+      if (code === 'KeyE') tryPickupOrAttach();
+      if (code === 'KeyG') throwItem();
+      if (code === 'KeyC') toggleCockpit();
+      if (code === 'KeyX') toggleDRS();
+      if (code === 'KeyF') toggleFlashlight();
+    }
+
+    document.addEventListener('mousemove', e => {
+      if (!locked) return;
+      const dx = e.movementX !== undefined ? e.movementX : (e.clientX - (canvas._lastMouseX || e.clientX));
+      const dy = e.movementY !== undefined ? e.movementY : (e.clientY - (canvas._lastMouseY || e.clientY));
+      canvas._lastMouseX = e.clientX;
+      canvas._lastMouseY = e.clientY;
+      cam.yaw += dx * 0.002;
+      cam.pitch -= dy * 0.002;
+      cam.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, cam.pitch));
+    });
+
+    canvas.addEventListener('click', () => { if (!locked) startGame(); });
+
+    function startGame() {
+      locked = true;
+      document.getElementById('lock-prompt').style.display = 'none';
+      canvas.requestPointerLock();
+      canvas.focus();
+    }
+
+    let pauseStartTime = 0;
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement) {
+        locked = true;
+        document.getElementById('lock-prompt').style.display = 'none';
+        if (pauseStartTime > 0) {
+          pitStartTime += (performance.now() - pauseStartTime);
+          pauseStartTime = 0;
+        }
+      } else {
+        locked = false;
+        pauseStartTime = performance.now();
+        const prompt = document.getElementById('lock-prompt');
+        prompt.style.display = 'flex';
+        prompt.querySelector('h2').textContent = 'PAUSED';
+        prompt.querySelector('p').textContent = 'Simulation paused. Press resume to continue.';
+        prompt.querySelector('button').textContent = 'RESUME';
+      }
+    });
+
+    // ─── GAME LOGIC ────────────────────────────────────────────────────────────
+    function tryPickupOrAttach() {
+      if (carryItem) {
+        if (carryItem.type === 'tire') {
+          let closestHub = null, minD = 3.8;
+          for (let h of HUBS) {
+            if (!h.attachedItem) {
+              const hx = CAR.x + h.x, hz = CAR.z + h.z;
+              const d = Math.sqrt((cam.x - hx) ** 2 + (cam.z - hz) ** 2);
+              if (d < minD) { minD = d; closestHub = h; }
+            }
+          }
+          if (closestHub) {
+            const hubId = closestHub.id;
+            closestHub.attachedItem = carryItem.id;
+            carryItem.attached = true;
+            carryItem.carried = false;
+            carryItem = null;
+            document.getElementById('carry-indicator').style.display = 'none';
+            const attached = items.find(i => i.id === closestHub.attachedItem);
+            if (attached && attached.id.includes('new')) {
+              document.getElementById('task-' + hubId).classList.add('done');
+            }
+            showStatus('✅ Lastik takıldı!');
+            return;
+          }
+          showStatus('Boş dingile daha yaklaş!');
+          return;
+        }
+        if (carryItem.type === 'wing') {
+          if (!carEntryDone) { showStatus('Önce arabayı çağır!'); return; }
+          const fx = CAR.x, fz = CAR.z - 2.5;
+          const d = Math.sqrt((cam.x - fx) ** 2 + (cam.z - fz) ** 2);
+          if (d < 4.0) {
+            if (WING_HUB.attachedItem) {
+              showStatus('Önce eski kanadı sökmek gerekiyor!');
+              return;
+            }
+            WING_HUB.attachedItem = carryItem.id;
+            carryItem.attached = true;
+            carryItem.carried = false;
+            carryItem = null;
+            document.getElementById('carry-indicator').style.display = 'none';
+            document.getElementById('task-wing').classList.add('done');
+            showStatus('✅ Ön kanat takıldı!');
+            return;
+          }
+          showStatus('Arabanın önüne daha yaklaş!');
+          return;
+        }
+        showStatus('Bağlantı noktasına yaklaş!');
+        return;
+      }
+      let closestAction = null;
+      let minInteractionD = 4.0;
+      const bx = CAR_BUTTON_POS.x, bz = CAR_BUTTON_POS.z;
+      const bd = Math.sqrt((cam.x - bx) ** 2 + (cam.z - bz) ** 2);
+      if (bd < minInteractionD) {
+        minInteractionD = bd;
+        closestAction = () => {
+          if (!carCallTriggered) {
+            carCallTriggered = true;
+            showStatus('🚗 Araba çağrıldı! Hazır ol!');
+          } else if (carEntryDone && !carExitTriggered) {
+            const tiresDone = HUBS.every(h => h.attachedItem && h.attachedItem.includes('new'));
+            const wingDone = WING_HUB.attachedItem && WING_HUB.attachedItem.includes('new');
+            if (tiresDone && wingDone) {
+              carExitTriggered = true;
+              pitTimerRunning = false;
+              pitFinalTime = (performance.now() - pitStartTime) / 1000;
+              showStatus(`🏁 Pit stop tamamlandı! Süre: ${pitFinalTime.toFixed(2)}s`);
+            } else {
+              showStatus('❌ Eksik veya eski kalan parçalar var! Görevleri tamamla.');
+            }
+          } else if (carExitTriggered) {
+            showStatus('Araba çoktan gitti!');
+          } else {
+            showStatus('🚗 Araba geliyor...');
+          }
+        };
+      }
+      if (carEntryDone && !carExitTriggered) {
+        const fx = CAR.x, fz = CAR.z - 2.5;
+        const wd = Math.sqrt((cam.x - fx) ** 2 + (cam.z - fz) ** 2);
+        if (WING_HUB.attachedItem && wd < minInteractionD) {
+          minInteractionD = wd;
+          closestAction = () => {
+            const wingItem = items.find(i => i.id === WING_HUB.attachedItem);
+            WING_HUB.attachedItem = null;
+            wingItem.attached = false;
+            wingItem.carried = true;
+            carryItem = wingItem;
+            document.getElementById('carry-indicator').style.display = 'block';
+            document.getElementById('carry-indicator').textContent = `⬆ CARRYING: ${wingItem.label.toUpperCase()}`;
+            showStatus('Eski kanat söküldü!');
+          };
+        }
+        for (let h of HUBS) {
+          if (h.attachedItem) {
+            const hx = CAR.x + h.x, hz = CAR.z + h.z;
+            const hd = Math.sqrt((cam.x - hx) ** 2 + (cam.z - hz) ** 2);
+            if (hd < minInteractionD) {
+              minInteractionD = hd;
+              closestAction = () => {
+                let tItem = items.find(i => i.id === h.attachedItem);
+                h.attachedItem = null;
+                tItem.attached = false;
+                tItem.carried = true;
+                carryItem = tItem;
+                document.getElementById('carry-indicator').style.display = 'block';
+                document.getElementById('carry-indicator').textContent = `⬆ CARRYING: ${tItem.label.toUpperCase()}`;
+                showStatus('Lastik söküldü!');
+              };
+            }
+          }
+        }
+      }
+      for (let c of items) {
+        if (c.attached || c.carried) continue;
+        const dx = cam.x - c.x, dy = cam.y - c.y, dz = cam.z - c.z;
+        const cd = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (cd < minInteractionD) {
+          minInteractionD = cd;
+          closestAction = () => {
+            c.carried = true;
+            carryItem = c;
+            document.getElementById('carry-indicator').style.display = 'block';
+            document.getElementById('carry-indicator').textContent = `⬆ CARRYING: ${c.label.toUpperCase()}`;
+            showStatus(`${c.label} alındı.`);
+          };
+        }
+      }
+      if (closestAction) closestAction();
+      else showStatus('Burada etkileşime girilecek bir şey yok');
+    }
+
+    function throwItem() {
+      if (!carryItem) return;
+      const throwSpeed = 7.0;
+      const upVel = 1.8;
+      const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+      carryItem.x = cam.x + sy * 1.5;
+      carryItem.y = cam.y - 0.1;
+      carryItem.z = cam.z - cy * 1.5;
+      carryItem.vx = sy * throwSpeed;
+      carryItem.vz = -cy * throwSpeed;
+      carryItem.vy = upVel;
+      carryItem.carried = false;
+      carryItem = null;
+      document.getElementById('carry-indicator').style.display = 'none';
+      showStatus('Thrown!');
+    }
+
+    function toggleFlashlight() {
+      const wLight = items.find(i => i.type === 'worklight');
+      if (!wLight) return;
+      let canToggle = false;
+      if (carryItem && carryItem.type === 'worklight') {
+        canToggle = true;
+      } else {
+        const dx = cam.x - wLight.x, dy = cam.y - wLight.y, dz = cam.z - wLight.z;
+        if (Math.sqrt(dx * dx + dy * dy + dz * dz) < 3.0) canToggle = true;
+      }
+      if (canToggle) {
+        worklightOn = !worklightOn;
+        showStatus(worklightOn ? '💡 FLASHLIGHT AÇIK' : '💡 FLASHLIGHT KAPALI');
+      } else {
+        showStatus('Flashlight çok uzak');
+      }
+    }
+
+    function toggleCockpit() {
+      if (!cockpitMode && (!carEntryDone || carExitTriggered)) {
+        showStatus('Kokpite geçmek için arabanın garajda olması gerekiyor!');
+        return;
+      }
+      cockpitMode = !cockpitMode;
+      document.getElementById('cockpit-overlay').classList.toggle('active', cockpitMode);
+      document.getElementById('mode-label').textContent = cockpitMode ? 'COCKPIT VIEW' : 'FREE ROAM';
+      if (cockpitMode) {
+        cam.x = CAR.x;
+        cam.y = CAR.y + 0.90;
+        cam.z = CAR.z - 0.50;
+        cam.yaw = 0;
+        cam.pitch = 0;
+        showStatus('Cockpit view. ←→ to steer, X for DRS');
+      } else {
+        cam.y = 1.7;
+      }
+    }
+
+    function toggleDRS() {
+      drsOpen = !drsOpen;
+      document.getElementById('drs-indicator').classList.toggle('active', drsOpen);
+      showStatus(drsOpen ? 'DRS OPEN' : 'DRS CLOSED');
+    }
+
+    let statusTimer = null;
+    function showStatus(msg) {
+      document.getElementById('status-msg').textContent = msg;
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => document.getElementById('status-msg').textContent = '', 3000);
+    }
+
+    // ─── UPDATE ────────────────────────────────────────────────────────────────
+    let last = 0;
+    function update(ts) {
+      if (!locked) {
+        last = ts;
+        return;
+      }
+      const dt = Math.min((ts - last) / 1000, 0.05);
+      last = ts;
+
+      if (carCallTriggered && !carEntryDone) {
+        carEntryZ -= dt * 18;
+        if (carEntryZ <= CAR_STOP_Z) {
+          carEntryZ = CAR_STOP_Z;
+          carEntryDone = true;
+          pitStartTime = performance.now();
+          pitTimerRunning = true;
+          HUBS[0].attachedItem = 'tire_old_fl';
+          HUBS[1].attachedItem = 'tire_old_fr';
+          HUBS[2].attachedItem = 'tire_old_rl';
+          HUBS[3].attachedItem = 'tire_old_rr';
+          WING_HUB.attachedItem = 'wing_old';
+          showStatus('Araba geldi! Tüm parçaları değiştir!');
+        }
+        CAR.z = carEntryZ;
+      } else if (carExitTriggered) {
+        carEntryZ -= dt * 18;
+        CAR.z = carEntryZ;
+      }
+
+      if (locked) {
+        const speed = 5.5 * dt;
+        const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+        if (!cockpitMode) {
+          if (keys['KeyW']) { cam.x += sy * speed; cam.z -= cy * speed; }
+          if (keys['KeyS']) { cam.x -= sy * speed; cam.z += cy * speed; }
+          if (keys['KeyA']) { cam.x -= cy * speed; cam.z -= sy * speed; }
+          if (keys['KeyD']) { cam.x += cy * speed; cam.z += sy * speed; }
+          if (keys['Space']) cam.y += speed;
+          if (keys['ShiftLeft'] || keys['ShiftRight']) cam.y -= speed;
+        }
+
+        if (cockpitMode) {
+          if (keys['KeyA']) steerAngle = Math.min(0.5, steerAngle + dt * 1.5);
+          if (keys['KeyD']) steerAngle = Math.max(-0.5, steerAngle - dt * 1.5);
+          if (!keys['KeyA'] && !keys['KeyD']) steerAngle *= (1 - dt * 3);
+        } else {
+          steerAngle *= (1 - dt * 3);
+        }
+
+        const drsTarget = drsOpen ? 0.45 : 0;
+        drsFlap += (drsTarget - drsFlap) * dt * 6;
+
+        if (keys['KeyR']) flashlightPower = Math.min(10.0, flashlightPower + dt * 5);
+        if (keys['KeyQ']) flashlightPower = Math.max(0.0, flashlightPower - dt * 5);
+
+        if (carryItem) {
+          carryItem.x = cam.x + Math.sin(cam.yaw) * 1.2;
+          carryItem.y = cam.y - 0.3;
+          carryItem.z = cam.z - Math.cos(cam.yaw) * 1.2;
+        }
+
+        if (cockpitMode) {
+          cam.x = CAR.x;
+          cam.y = CAR.y + 0.90;
+          cam.z = CAR.z - 0.50;
+        } else {
+          cam.x = Math.max(-6.0, Math.min(16.5, cam.x));
+          cam.y = Math.max(0.5, Math.min(6.0, cam.y));
+          cam.z = Math.max(-8.5, Math.min(8.5, cam.z));
+
+          const carMinX = CAR.x - 1.3, carMaxX = CAR.x + 1.3;
+          const carMinZ = CAR.z - 2.8, carMaxZ = CAR.z + 2.3;
+          const carMinY = 0, carMaxY = 1.4;
+          if (cam.x > carMinX && cam.x < carMaxX &&
+            cam.z > carMinZ && cam.z < carMaxZ &&
+            cam.y > carMinY && cam.y < carMaxY + 0.5) {
+            const dLeft = cam.x - carMinX;
+            const dRight = carMaxX - cam.x;
+            const dFront = cam.z - carMinZ;
+            const dBack = carMaxZ - cam.z;
+            const minD = Math.min(dLeft, dRight, dFront, dBack);
+            if (minD === dLeft) cam.x = carMinX - 0.05;
+            else if (minD === dRight) cam.x = carMaxX + 0.05;
+            else if (minD === dFront) cam.z = carMinZ - 0.05;
+            else cam.z = carMaxZ + 0.05;
+          }
+        }
+      }
+
+      cam.x = Math.max(-9, Math.min(20, cam.x));
+      cam.z = Math.max(-10, Math.min(10, cam.z));
+      if (!cockpitMode && !keys['Space'] && !keys['ShiftLeft'] && !keys['ShiftRight']) {
+        cam.y += (1.7 - cam.y) * 0.15;
+      }
+
+      items.forEach(c => {
+        if (!c.carried && !c.attached) {
+          const ground = c.type === 'tire' ? 0.45 : (c.type === 'worklight' ? 0.05 : 0.10);
+          if (c.y > ground) {
+            c.vy -= dt * 9.8;
+            c.y += c.vy * dt;
+          }
+          if (c.y <= ground) {
+            c.y = ground;
+            c.vy = 0;
+            if (c.vx) c.vx *= Math.pow(0.12, dt);
+            if (c.vz) c.vz *= Math.pow(0.12, dt);
+            if (Math.abs(c.vx) < 0.01) c.vx = 0;
+            if (Math.abs(c.vz) < 0.01) c.vz = 0;
+          }
+          c.x += (c.vx || 0) * dt;
+          c.z += (c.vz || 0) * dt;
+        }
+      });
+
+      const wLight = items.find(i => i.type === 'worklight');
+      spotOn = 0;
+      if (worklightOn && wLight) {
+        if (wLight.carried) {
+          lightPos = [cam.x, cam.y, cam.z];
+          lightPower = flashlightPower;
+          spotOn = 1;
+        } else {
+          lightPos = [wLight.x + 0.27, wLight.y, wLight.z];
+          lightPower = flashlightPower;
+          spotOn = 0;
+        }
+      } else {
+        lightPos = [cam.x, cam.y + 0.4, cam.z];
+        lightPower = 0.5;
+        spotOn = 0;
+      }
+
+      document.getElementById('hud-pos').textContent =
+        `${cam.x.toFixed(1)}, ${cam.y.toFixed(1)}, ${cam.z.toFixed(1)}`;
+      document.getElementById('hud-steer').textContent = `${(steerAngle * 57.3).toFixed(0)}°`;
+      document.getElementById('hud-light').textContent = `${Math.round((flashlightPower / 5) * 100)}%`;
+      document.getElementById('light-bar-fill').style.width = `${Math.round((flashlightPower / 5) * 100)}%`;
+
+      if (pitTimerRunning) {
+        const tEl = document.getElementById('big-timer');
+        tEl.style.display = 'block';
+        tEl.textContent = ((performance.now() - pitStartTime) / 1000).toFixed(2) + 's';
+      } else if (carExitTriggered) {
+        document.getElementById('big-timer').textContent = pitFinalTime.toFixed(2) + 's';
+      } else {
+        document.getElementById('big-timer').style.display = 'none';
+      }
+    }
+
+    // ─── RENDER ────────────────────────────────────────────────────────────────
+    function render() {
+      gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.CULL_FACE);
+      gl.clearColor(0.53, 0.81, 0.92, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      const aspect = canvas.width / canvas.height;
+      const proj = perspective((Math.PI / 2.2) * 180 / Math.PI, aspect, 0.1, 100);
+
+      const fsy = Math.sin(cam.yaw), fcy = Math.cos(cam.yaw);
+      const fsp = Math.sin(cam.pitch), fcp = Math.cos(cam.pitch);
+      const lookX = cam.x + fsy * fcp, lookY = cam.y + fsp, lookZ = cam.z - fcy * fcp;
+      const spotDirX = fsy * fcp, spotDirY = fsp, spotDirZ = -fcy * fcp;
+
+      const view = lookAt(vec3(cam.x, cam.y, cam.z), vec3(lookX, lookY, lookZ), vec3(0, 1, 0));
+
+      gl.uniformMatrix4fv(loc.uView, false, flatten(view));
+      gl.uniformMatrix4fv(loc.uProj, false, flatten(proj));
+      gl.uniform3fv(loc.uLightPos, lightPos);
+      gl.uniform1f(loc.uLightPow, lightPower);
+      gl.uniform3fv(loc.uSpotDir, [spotDirX, spotDirY, spotDirZ]);
+      gl.uniform1f(loc.uSpotCutoff, Math.cos(0.30));
+      gl.uniform1f(loc.uSpotOuter, Math.cos(0.55));
+      gl.uniform1i(loc.uSpotOn, spotOn);
+      gl.uniform3fv(loc.uLight2Pos, overheadLightPos);
+      gl.uniform1f(loc.uLight2Pow, overheadLightPower);
+      gl.uniform3fv(loc.uCamPos, [cam.x, cam.y, cam.z]);
+
+      // ── OUTDOOR SCENE ──
+      drawPart(MESH.box, 0, -0.05, 0, 300, 0.1, 300, null, texGrass, 64);
+      drawPart(MESH.box, 0, -0.04, 0, 14, 0.1, 100, null, texConcrete, 16);
+      drawPart(MESH.box, -6.5, 0.5, 0, 0.5, 1, 100, [0.9, 0.1, 0.1, 1], null, 32);
+      drawPart(MESH.box, -6.5, 1.05, 0, 0.55, 0.12, 100, [1, 1, 1, 1], null, 8);
+      drawPart(MESH.box, -6.3, 0.01, -9, 0.1, 0.05, 4, [1, 1, 0, 1], null, 4);
+      drawPart(MESH.box, -20, -0.02, 0, 22, 0.08, 200, null, texAsphalt, 8);
+      drawPart(MESH.box, -30.5, 0.02, 0, 0.5, 0.06, 200, [1, 1, 1, 1], null, 4);
+      drawPart(MESH.box, -9.2, 0.02, 0, 0.4, 0.06, 200, [1, 1, 1, 1], null, 4);
+
+      for (let kz = -45; kz <= 45; kz += 4) {
+        const kc = (Math.floor(kz / 4) % 2 === 0) ? [0.9, 0.1, 0.1, 1] : [1, 1, 1, 1];
+        drawPart(MESH.box, -9.8, 0.03, kz, 1.0, 0.08, 1.8, kc, null, 4);
+        drawPart(MESH.box, -30.2, 0.03, kz, 1.0, 0.08, 1.8, kc, null, 4);
+      }
+
+      drawPart(MESH.box, -38, -0.04, 0, 14, 0.06, 200, [0.6, 0.55, 0.4, 1], null, 4);
+      drawPart(MESH.box, -52, 0, 0, 22, 0.5, 80, [0.3, 0.3, 0.35, 1], null, 4);
+
+      for (let row = 0; row < 7; row++) {
+        drawPart(MESH.box, -43 - row * 2.5, 0.4 + row * 1.2, 0, 2.2, 0.35, 78, null, texStand, 8);
+        drawPart(MESH.box, -42 - row * 2.5, row * 0.6 + 0.2, 0, 0.25, 1.1 + row * 0.25, 78, [0.25, 0.25, 0.3, 1], null, 4);
+      }
+
+      drawPart(MESH.box, -60, 9.5, 0, 26, 0.6, 82, [0.15, 0.15, 0.18, 1], null, 4);
+
+      for (let pz = -36; pz <= 36; pz += 12) {
+        drawPart(MESH.box, -46, 5, pz, 0.5, 9, 0.5, [0.2, 0.2, 0.22, 1], null, 4);
+        drawPart(MESH.box, -62, 5, pz, 0.5, 9, 0.5, [0.2, 0.2, 0.22, 1], null, 4);
+      }
+
+      const adColors = [[0.9, 0.1, 0.1, 1], [1, 0.7, 0, 1], [0, 0.4, 0.8, 1], [0.1, 0.6, 0.1, 1]];
+      for (let az = -36; az <= 36; az += 9) {
+        drawPart(MESH.box, -44.8, 1.5, az, 0.15, 2.5, 7.5, adColors[Math.abs(Math.floor(az / 9)) % 4], null, 4);
+      }
+
+      const gWallColor = [0.4, 0.4, 0.4, 1];
+      const gRoofColor = [0.2, 0.2, 0.2, 1];
+
+      drawPart(MESH.box, 12.5, -0.03, 0, 11, 0.1, 20, null, texConcrete, 1.0);
+      drawPart(MESH.box, 17.5, 3, 0, 1, 6, 20, gWallColor, texWall, 2);
+      drawPart(MESH.box, 12.5, 3, -9.5, 11, 6, 1, gWallColor, texWall, 2);
+      drawPart(MESH.box, 12.5, 3, 9.5, 11, 6, 1, gWallColor, texWall, 2);
+      drawPart(MESH.box, 12.5, 6.5, 0, 11, 1, 20, gRoofColor, null, 4);
+      drawPart(MESH.box, 7.2, 5.5, 0, 0.5, 2, 20, [0.15, 0.15, 0.15, 1], null, 4);
+
+      // ── GARAGE INTERIOR EQUIPMENT ──
+      drawPart(MESH.box, overheadLightPos[0], overheadLightPos[1] + 0.05, overheadLightPos[2], 1.2, 0.05, 3.2, [0.2, 0.2, 0.22, 1.0], null, 4);
+      drawPart(MESH.box, overheadLightPos[0], overheadLightPos[1], overheadLightPos[2], 1.1, 0.04, 3.1, [1.0, 0.95, 0.9, 1.0], null, 4);
+
+      const tbPositions = [[16, 0, 8.8], [12, 0, 8.8], [8, 0, 8.8]];
+      tbPositions.forEach(([x, y, z]) => {
+        drawPart(MESH.box, x, 0.6, z, 1.5, 1.2, 0.8, null, texMetal, 16);
+        [0.55, 0.3, 0.05].forEach((dy) => {
+          drawPart(MESH.box, x, dy, z - 0.41, 1.3, 0.2, 0.05, [0.55, 0.55, 0.6, 1], null, 32);
+          drawPart(MESH.box, x, dy, z - 0.45, 0.3, 0.04, 0.03, [0.8, 0.8, 0.8, 1], null, 64);
+        });
+        [-0.6, 0.6].forEach(dx2 => [-0.3, 0.3].forEach(dz2 => {
+          drawPart(MESH.box, x + dx2, -0.05, z + dz2, 0.12, 0.12, 0.12, [0.1, 0.1, 0.1, 1], null, 16);
+        }));
+      });
+
+      drawPart(MESH.box, 16.5, 1.0, -3, 1.8, 0.08, 3.5, [0.15, 0.15, 0.18, 1], null, 32);
+
+      [[15.8, -3.5], [15.8, -1.5], [17.3, -3.5], [17.3, -1.5]].forEach(([lx, lz]) => {
+        drawPart(MESH.box, lx, 0.5, lz, 0.08, 1.0, 0.08, [0.2, 0.2, 0.22, 1], null, 16);
+      });
+
+      [-3.8, -3.0, -2.2].forEach((mz) => {
+        drawPart(MESH.box, 16.8, 1.25, mz, 0.04, 0.3, 0.04, [0.2, 0.2, 0.22, 1], null, 16);
+        drawPart(MESH.box, 16.8, 1.07, mz, 0.3, 0.04, 0.15, [0.15, 0.15, 0.18, 1], null, 16);
+        drawPart(MESH.box, 16.8, 1.65, mz, 0.05, 0.55, 0.75, [0.08, 0.08, 0.1, 1], null, 16);
+        drawPart(MESH.box, 16.77, 1.65, mz, 0.04, 0.48, 0.68, null, texScreen, 128);
+      });
+
+      drawPart(MESH.box, 16.82, 1.08, -3.0, 0.04, 0.03, 1.0, [0.12, 0.12, 0.14, 1], null, 32);
+      drawPart(MESH.box, 17.45, 3.0, 3.5, 0.06, 2.0, 3.0, null, texWhiteboard, 16);
+      drawPart(MESH.box, 17.44, 3.0, 3.5, 0.05, 2.1, 3.1, [0.3, 0.3, 0.32, 1], null, 4);
+      drawPart(MESH.box, 9.5, 0.08, 0, 3.0, 0.16, 0.5, [0.7, 0.5, 0.0, 1], null, 32);
+      drawPart(MESH.box, 9.5, 0.5, 0, 0.1, 0.8, 0.1, [0.8, 0.6, 0.0, 1], null, 32);
+      drawPart(MESH.box, 9.5, 0.95, 0, 1.0, 0.12, 0.3, [0.6, 0.4, 0.0, 1], null, 32);
+
+      // Lastikler ve açılı silindirler kendi eksenlerinde döndükleri için drawMesh ile bırakıldı.
+      [0, 1, 2].forEach(i => {
+        let tst = mat4(); tst = mult(tst, translate(15.5, 0.3 + i * 0.3, -7.5)); tst = mult(tst, rotate(90, [0, 0, 1]));
+        tst = mult(tst, translate(0, -0.25, 0));
+        drawMesh(MESH.tire, tst, null, texRubber, 12);
+      });
+
+      [0, 1].forEach(i => {
+        let tst = mat4(); tst = mult(tst, translate(14.5, 0.3 + i * 0.3, -7.5)); tst = mult(tst, rotate(90, [0, 0, 1]));
+        tst = mult(tst, translate(0, -0.25, 0));
+        drawMesh(MESH.tire, tst, null, texRubber, 12);
+      });
+
+      [[9.3, 0, -8.5], [17.2, 0, -8.5], [17.2, 0, 8.5]].forEach(([x, y, z]) => {
+        let fe = mat4(); fe = mult(fe, translate(x, 0.6, z)); fe = mult(fe, rotate(0.05 * 180 / Math.PI, [1, 0, 0])); fe = mult(fe, scale(0.18, 0.55, 0.18));
+        drawMesh(MESH.cylinder, fe, [0.85, 0.05, 0.05, 1], null, 32);
+        drawPart(MESH.cylinder, x, 1.0, z, 0.1, 0.15, 0.1, [0.1, 0.1, 0.1, 1], null, 16);
+      });
+
+      drawPart(MESH.box, CAR_BUTTON_POS.x, CAR_BUTTON_POS.y, CAR_BUTTON_POS.z - 0.05, 0.55, 0.55, 0.12, [0.12, 0.12, 0.14, 1], null, 8);
+      drawPart(MESH.box, CAR_BUTTON_POS.x, CAR_BUTTON_POS.y, CAR_BUTTON_POS.z, 0.18, 0.18, 0.06, carCallTriggered ? [0.2, 0.8, 0.2, 1] : [0.95, 0.05, 0.05, 1], null, 64);
+      drawPart(MESH.box, CAR_BUTTON_POS.x, CAR_BUTTON_POS.y + 0.22, CAR_BUTTON_POS.z, 0.5, 0.06, 0.06, [0.1, 0.1, 0.12, 1], null, 4);
+
+      [[-3, 6, 0], [3, 6, 0], [0, 6, -6], [0, 6, 6]].forEach(([lx, ly, lz2]) => {
+        drawPart(MESH.box, lx + 12.5, ly, lz2, 0.15, 0.15, 3.0, [0.2, 0.2, 0.22, 1], null, 4);
+        [-1.2, 0, 1.2].forEach(bz => {
+          drawPart(MESH.box, lx + 12.5, ly - 0.1, lz2 + bz, 0.12, 0.12, 0.12, [1.0, 0.95, 0.8, 1], null, 1);
+        });
+      });
+
+      drawPart(MESH.cylinder, 12.0, 0.8, 7, 0.8, 1.5, 0.8, [0.7, 0.6, 0.0, 1], null, 16);
+      drawPart(MESH.box, 11.5, 1.6, 7, 1.0, 0.06, 0.06, [0.3, 0.3, 0.32, 1], null, 16);
+      drawPart(MESH.cylinder, 11.0, 0.25, 7, 0.3, 0.25, 0.3, [0.1, 0.1, 0.12, 1], null, 8);
+
+      drawPart(MESH.box, 17.1, 0.7, 1.5, 0.7, 1.4, 0.8, [0.15, 0.15, 0.4, 1], null, 16);
+      drawPart(MESH.box, 16.74, 0.9, 1.5, 0.04, 0.4, 0.06, [0.7, 0.7, 0.75, 1], null, 32);
+      drawPart(MESH.box, 16.73, 1.2, 1.5, 0.04, 0.15, 0.75, [0.9, 0.05, 0.0, 1], null, 16);
+
+      [1.5, 3.0, 4.5].forEach(sy2 => {
+        drawPart(MESH.box, 17.2, sy2, 0, 0.4, 0.06, 8, [0.35, 0.35, 0.38, 1], null, 8);
+        [-3, -1.5, 0, 1.5, 3].forEach(sz2 => {
+          drawPart(MESH.box, 17.0, sy2 + 0.15, sz2, 0.25, 0.22, 0.22, [0.8 + Math.sin(sz2) * 0.1, 0.1, 0.0, 1], null, 8);
+        });
+      });
+
+      [-4, 0, 4].forEach(sz2 => {
+        drawPart(MESH.box, 17.1, 2.5, sz2, 0.08, 5.0, 0.08, [0.3, 0.3, 0.32, 1], null, 8);
+      });
+
+      components.forEach(c => {
+        if (c.attached) return;
+        let m = mat4();
+        m = mult(m, translate(c.x, c.y, c.z));
+        if (c.type === 'tire') {
+          m = mult(m, rotate(90, [0, 0, 1]));
+          m = mult(m, translate(0, -0.25, 0));
+          drawShadow(MESH.tire, m);
+        } else if (c.type === 'worklight') {
+          m = mult(m, rotate(90, [0, 0, 1]));
+          m = mult(m, scale(0.08, 0.38, 0.08));
+          drawShadow(MESH.cylinder, m);
+        } else if (c.type === 'wing') {
+          m = mult(m, scale(2.4, 0.12, 0.5));
+          drawShadow(MESH.box, m);
+        }
+      });
+
+      drawF1Car();
+
+      components.forEach(c => {
+        if (c.attached) return;
+        if (c.carried && c.type === 'worklight') return;
+
+        if (c.type === 'tire') {
+          let m = mat4();
+          m = mult(m, translate(c.x, c.y, c.z));
+          m = mult(m, rotate(90, [0, 0, 1]));
+          m = mult(m, translate(0, -0.25, 0));
+          drawMesh(MESH.tire, m, null, c.tex, 12);
+        } else if (c.type === 'worklight') {
+          let body = mat4();
+          body = mult(body, translate(c.x, c.y, c.z));
+          body = mult(body, rotate(90, [0, 0, 1]));
+          body = mult(body, scale(0.08, 0.38, 0.08));
+          drawMesh(MESH.cylinder, body, null, texMetal, 64);
+          drawPart(MESH.box, c.x + 0.22, c.y, c.z, 0.10, 0.13, 0.13, [0.3, 0.3, 0.35, 1], null, 32);
+          const lensColor = worklightOn && c.carried ? [1.0, 0.95, 0.5, 1] : [0.2, 0.2, 0.22, 1];
+          drawPart(MESH.box, c.x + 0.27, c.y, c.z, 0.04, 0.10, 0.10, lensColor, null, 4);
+        } else if (c.type === 'wing') {
+          drawPart(MESH.box, c.x, c.y, c.z, 2.4, 0.12, 0.5, null, c.tex, 64);
+          [-1.15, 1.15].forEach(ex => {
+            drawPart(MESH.box, c.x + ex, c.y + 0.15, c.z, 0.1, 0.35, 0.55, null, texRed, 32);
+          });
+        }
+      });
+
+      if (carryItem && carryItem.type === 'worklight') {
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        let vm = mat4();
+        vm = mult(vm, translate(cam.x, cam.y, cam.z));
+        vm = mult(vm, rotate(-cam.yaw * 180 / Math.PI, [0, 1, 0]));
+        vm = mult(vm, rotate(cam.pitch * 180 / Math.PI, [1, 0, 0]));
+        vm = mult(vm, translate(0.35, -0.25, -0.4));
+
+        let body = mult(vm, mat4());
+        body = mult(body, rotate(-90, [1, 0, 0]));
+        body = mult(body, scale(0.05, 0.25, 0.05));
+        drawMesh(MESH.cylinder, body, null, texMetal, 32);
+
+        let head = mult(vm, mat4());
+        head = mult(head, translate(0, 0, -0.25));
+        head = mult(head, scale(0.12, 0.12, 0.08));
+        drawMesh(MESH.box, head, [0.3, 0.3, 0.35, 1], null, 32);
+
+        let glow = mult(vm, mat4());
+        glow = mult(glow, translate(0, 0, -0.29));
+        glow = mult(glow, scale(0.09, 0.09, 0.01));
+        const glowColor = worklightOn ? [1.0, 0.95, 0.8, 1] : [0.2, 0.2, 0.2, 1];
+        drawMesh(MESH.box, glow, glowColor, null, 8);
+      }
+
+      if (carryItem && carryItem.type === 'tire') {
+        let ghostHub = null, minD = 3.0;
+        for (const h of HUBS) {
+          if (!h.attachedItem) {
+            const hx = CAR.x + h.x, hz2 = CAR.z + h.z;
+            const d = Math.sqrt((cam.x - hx) ** 2 + (cam.z - hz2) ** 2);
+            if (d < minD) { minD = d; ghostHub = h; }
+          }
+        }
+        if (ghostHub) {
+          const hx = CAR.x + ghostHub.x;
+          const hy = CAR.y + 0.32;
+          const hz2 = CAR.z + ghostHub.z;
+          let gm = mat4();
+          gm = mult(gm, translate(hx, hy, hz2));
+          gm = mult(gm, rotate(90, [0, 0, 1]));
+          gm = mult(gm, translate(0, -0.25, 0));
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.depthMask(false);
+          gl.uniformMatrix4fv(loc.uModel, false, flatten(gm));
+          gl.uniformMatrix3fv(loc.uNormalMat, false, flatten(normalMatrix(gm, true)));
+          gl.uniform4fv(loc.uColor, [0.1, 1.0, 0.3, 0.38]);
+          gl.uniform1i(loc.uUseTex, 0);
+          gl.uniform1f(loc.uShiny, 8);
+          bindMesh(MESH.tire);
+          gl.drawElements(gl.TRIANGLES, MESH.tire.count, gl.UNSIGNED_SHORT, 0);
+          gl.depthMask(true);
+          gl.disable(gl.BLEND);
+        }
+      }
+
+      if (carryItem && carryItem.type === 'wing') {
+        const fx = CAR.x, fz2 = CAR.z - 2.55;
+        const d = Math.sqrt((cam.x - fx) ** 2 + (cam.z - fz2) ** 2);
+        if (d < 3.0) {
+          let wg = mat4();
+          wg = mult(wg, translate(fx, CAR.y + 0.2, fz2));
+          wg = mult(wg, scale(2.4, 0.07, 0.55));
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.depthMask(false);
+          gl.uniformMatrix4fv(loc.uModel, false, flatten(wg));
+          gl.uniformMatrix3fv(loc.uNormalMat, false, flatten(normalMatrix(wg, true)));
+          gl.uniform4fv(loc.uColor, [0.1, 1.0, 0.3, 0.35]);
+          gl.uniform1i(loc.uUseTex, 0);
+          gl.uniform1f(loc.uShiny, 8);
+          bindMesh(MESH.box);
+          gl.drawElements(gl.TRIANGLES, MESH.box.count, gl.UNSIGNED_SHORT, 0);
+          gl.depthMask(true);
+          gl.disable(gl.BLEND);
+        }
+      }
+    }
+
+    // ─── DRAW F1 CAR ────────────────────────────────────────────────────────────
+    function drawF1Car() {
+      const cx = CAR.x, cy = CAR.y, cz = CAR.z;
+
+      drawPart(MESH.box, cx, cy + 0.13, cz + 0.3, 2.1, 0.04, 5.4, null, texCarbonFiber, 32);
+      drawPart(MESH.box, cx, cy + 0.42, cz, 0.72, 0.45, 2.6, null, texRed, 180);
+
+      {
+        let m = mat4(); m = mult(m, translate(cx, cy + 0.34, cz - 1.9)); m = mult(m, rotate(0.12 * 180 / Math.PI, [1, 0, 0])); m = mult(m, scale(0.52, 0.32, 2.0));
+        drawMesh(MESH.box, m, null, texRed, 180);
+      }
+      {
+        let m = mat4(); m = mult(m, translate(cx, cy + 0.22, cz - 3.0)); m = mult(m, rotate(0.18 * 180 / Math.PI, [1, 0, 0])); m = mult(m, scale(0.38, 0.20, 0.65));
+        drawMesh(MESH.box, m, null, texRed, 180);
+      }
+
+      [-1, 1].forEach(side => {
+        drawPart(MESH.box, cx + side * 0.72, cy + 0.42, cz, 0.72, 0.45, 2.1, null, texRed, 180);
+
+        let rm2 = mat4(); rm2 = mult(rm2, translate(cx + side * 0.58, cy + 0.38, cz + 1.4)); rm2 = mult(rm2, rotate(-0.15 * 180 / Math.PI, [1, 0, 0])); rm2 = mult(rm2, scale(0.52, 0.32, 1.3));
+        drawMesh(MESH.box, rm2, null, texRed, 180);
+
+        drawPart(MESH.box, cx + side * 0.72, cy + 0.48, cz - 1.0, 0.58, 0.26, 0.06, [0.05, 0.05, 0.05, 1], null, 32);
+
+        let bm = mat4(); bm = mult(bm, translate(cx + side * 1.04, cy + 0.32, cz - 1.0)); bm = mult(bm, rotate(side * 0.1 * 180 / Math.PI, [0, 1, 0])); bm = mult(bm, scale(0.05, 0.38, 1.04));
+        drawMesh(MESH.box, bm, null, texCarbonFiber, 32);
+      });
+
+      {
+        let m = mat4(); m = mult(m, translate(cx, cy + 0.90, cz + 0.4)); m = mult(m, rotate(-0.05 * 180 / Math.PI, [1, 0, 0])); m = mult(m, scale(0.39, 0.52, 1.04));
+        drawMesh(MESH.box, m, null, texCarbonFiber, 64);
+      }
+
+      drawPart(MESH.box, cx, cy + 0.75, cz - 0.1, 0.18, 0.18, 0.05, [0.05, 0.05, 0.05, 1], null, 32);
+
+      {
+        let m = mat4(); m = mult(m, translate(cx, cy + 0.65, cz + 1.2)); m = mult(m, rotate(-0.2 * 180 / Math.PI, [1, 0, 0])); m = mult(m, scale(0.04, 0.35, 1.2));
+        drawMesh(MESH.box, m, null, texCarbonFiber, 64);
+      }
+
+      {
+        let m = mat4(); m = mult(m, translate(cx, cy + 0.6, cz - 0.55)); m = mult(m, rotate(0.5 * 180 / Math.PI, [1, 0, 0])); m = mult(m, scale(0.04, 0.3, 0.04));
+        drawMesh(MESH.box, m, null, texCarbonFiber, 32);
+      }
+
+      drawPart(MESH.box, cx, cy + 0.73, cz - 0.45, 0.45, 0.04, 0.06, null, texCarbonFiber, 32);
+
+      [-1, 1].forEach(side => {
+        let m = mat4(); m = mult(m, translate(cx + side * 0.22, cy + 0.73, cz - 0.15)); m = mult(m, rotate(side * -0.1 * 180 / Math.PI, [0, 1, 0])); m = mult(m, scale(0.04, 0.04, 0.6));
+        drawMesh(MESH.box, m, null, texCarbonFiber, 32);
+      });
+
+      {
+        let m = mat4(); m = mult(m, translate(cx, cy + 0.3, cz + 1.6)); m = mult(m, rotate(90, [1, 0, 0])); m = mult(m, scale(0.15, 0.2, 0.15));
+        drawMesh(MESH.cylinder, m, null, texMetal, 128);
+      }
+
+      const frontWing = items.find(c => c.id === WING_HUB.attachedItem);
+      if (frontWing) {
+        drawPart(MESH.box, cx, cy + 0.22, cz - 2.8, 2.9, 0.09, 0.65, null, texCarbonFiber, 64);
+        drawPart(MESH.box, cx, cy + 0.32, cz - 2.7, 2.6, 0.07, 0.50, null, texRed, 64);
+        [-1.35, 1.35].forEach(ex => {
+          drawPart(MESH.box, cx + ex, cy + 0.35, cz - 2.75, 0.09, 0.38, 0.72, null, texRed, 32);
+        });
+      }
+
+      drawPart(MESH.box, cx, cy + 1.18, cz + 1.85, 2.0, 0.07, 0.45, null, texRed, 64);
+
+      {
+        let m = mat4();
+        m = mult(m, translate(cx, cy + 1.18, cz + 1.95));
+        m = mult(m, rotate(-drsFlap * 180 / Math.PI, [1, 0, 0]));
+        m = mult(m, translate(0, 0.12, 0));
+        m = mult(m, scale(1.95, 0.05, 0.38));
+        drawMesh(MESH.box, m, null, texCarbonFiber, 128);
+      }
+
+      [-0.98, 0.98].forEach(ex => {
+        drawPart(MESH.box, cx + ex, cy + 0.85, cz + 1.88, 0.07, 0.7, 0.52, null, texCarbonFiber, 32);
+      });
+
+      drawPart(MESH.box, cx, cy + 0.62, cz + 1.88, 0.1, 0.55, 0.1, null, texCarbonFiber, 16);
+
+      {
+        let col = mat4();
+        col = mult(col, translate(cx, cy + 0.65, cz - 0.8));
+        col = mult(col, rotate(-0.3 * 180 / Math.PI, [1, 0, 0]));
+        col = mult(col, scale(0.03, 0.03, 0.3));
+        drawMesh(MESH.box, col, null, texCarbonFiber, 32);
+
+        let sw = mat4();
+        sw = mult(sw, translate(cx, cy + 0.70, cz - 0.65));
+        sw = mult(sw, rotate(-0.3 * 180 / Math.PI, [1, 0, 0]));
+        sw = mult(sw, rotate(steerAngle * 4.0 * 180 / Math.PI, [0, 0, 1]));
+
+        let body = mult(sw, mat4());
+        body = mult(body, scale(0.28, 0.16, 0.02));
+        drawMesh(MESH.box, body, null, texCarbonFiber, 32);
+
+        [-1, 1].forEach(side => {
+          let grip = mult(sw, mat4());
+          grip = mult(grip, translate(side * 0.13, 0, 0));
+          grip = mult(grip, scale(0.04, 0.18, 0.03));
+          drawMesh(MESH.box, grip, null, texRubber, 32);
+        });
+
+        let screen = mult(sw, mat4());
+        screen = mult(screen, translate(0, 0.02, 0.015));
+        screen = mult(screen, scale(0.12, 0.08, 0.01));
+        drawMesh(MESH.box, screen, [0.1, 0.8, 0.2, 1], null, 32);
+
+        let revs = mult(sw, mat4());
+        revs = mult(revs, translate(0, 0.07, 0.015));
+        revs = mult(revs, scale(0.10, 0.015, 0.01));
+        drawMesh(MESH.box, revs, null, texRed, 32);
+
+        let btn1 = mult(sw, mat4());
+        btn1 = mult(btn1, translate(-0.07, -0.04, 0.015));
+        btn1 = mult(btn1, scale(0.02, 0.02, 0.01));
+        drawMesh(MESH.box, btn1, null, texRed, 32);
+
+        let btn2 = mult(sw, mat4());
+        btn2 = mult(btn2, translate(0.07, -0.04, 0.015));
+        btn2 = mult(btn2, scale(0.02, 0.02, 0.01));
+        drawMesh(MESH.box, btn2, null, texYellow, 32);
+      }
+
+      const tireData = [
+        { comp: 'fl', x: cx - 1.0, y: cy + 0.45, z: cz - 2.0 },
+        { comp: 'fr', x: cx + 1.0, y: cy + 0.45, z: cz - 2.0 },
+        { comp: 'rl', x: cx - 1.0, y: cy + 0.45, z: cz + 1.8 },
+        { comp: 'rr', x: cx + 1.0, y: cy + 0.45, z: cz + 1.8 },
+      ];
+
+      tireData.forEach(td => {
+        const hub = HUBS.find(h => h.id === td.comp);
+        const hasTire = hub && hub.attachedItem !== null;
+        if (!hasTire) {
+          let m = mat4(); m = mult(m, translate(td.x, td.y, td.z));
+          if (td.comp === 'fl' || td.comp === 'fr') m = mult(m, rotate(steerAngle * 180 / Math.PI, [0, 1, 0]));
+          m = mult(m, rotate(90, [0, 0, 1]));
+          m = mult(m, scale(0.42, 0.22, 0.42));
+          m = mult(m, translate(0, -0.5, 0));
+          drawMesh(MESH.cylinder, m, null, texMetal, 64);
+        } else {
+          let m = mat4(); m = mult(m, translate(td.x, td.y, td.z));
+          if (td.comp === 'fl' || td.comp === 'fr') m = mult(m, rotate(steerAngle * 180 / Math.PI, [0, 1, 0]));
+          m = mult(m, rotate(90, [0, 0, 1]));
+          m = mult(m, translate(0, -0.25, 0));
+          drawMesh(MESH.tire, m, null, texRubber, 12);
+
+          let rm = mat4(); rm = mult(rm, translate(td.x, td.y, td.z));
+          if (td.comp === 'fl' || td.comp === 'fr') rm = mult(rm, rotate(steerAngle * 180 / Math.PI, [0, 1, 0]));
+          rm = mult(rm, rotate(90, [0, 0, 1]));
+          rm = mult(rm, scale(0.36, 0.28, 0.36));
+          rm = mult(rm, translate(0, -0.5, 0));
+          drawMesh(MESH.cylinder, rm, null, texYellow, 64);
+        }
+      });
+
+      tireData.forEach(td => {
+        [-0.06, 0.06].forEach(dy => {
+          const sx = td.x < 0 ? -1 : 1;
+          drawPart(MESH.box, cx + sx * 0.5, td.y + dy, td.z, 0.42, 0.04, 0.04, [0.25, 0.25, 0.28, 1], null, 16);
+        });
+      });
+    }
+
+    function loop(ts) {
+      update(ts);
+      render();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+
+
+</body>
+
+</html>

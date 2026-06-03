@@ -1,0 +1,32 @@
+1. Brief Introduction
+This project presents an interactive 3D Formula 1 pit garage simulation developed strictly using WebGL. An F1 car
+enters the pit lane and the user, navigating freely through the garage environment, performs component replacements
+by picking up parts and attaching them to the vehicle. The project demonstrates hierarchical modeling, proximity-
+based snapping, dynamic lighting, and texture mapping entirely through low-level WebGL and GLSL, without
+relying on any game engine or graphics framework.
+2. Detailed Description
+The scene is set inside a Formula 1 pit garage. When the simulation begins, an F1 car rolls into the pit lane and stops.
+The user navigates the 3D environment using a free-roaming first-person camera (WASD keys and mouse look), able
+to move freely along all three axes and rotate in any direction. The garage contains loose components — tires and a
+front wing — placed on the floor that the user can pick up and carry.
+The scene contains at least three distinct object types with different morphologies: the F1 car body (a complex multi-
+part mesh), cylindrical tires, and the rectangular garage environment (walls, floor, toolboxes). Each of these carries
+a different texture: a carbon-fiber/metallic paint texture on the car body, a matte rubber texture on the tires, and a
+concrete/asphalt texture on the garage floor, satisfying both the morphology and texture requirements.
+The three independently controllable objects in the scene are the tire, the front wing, and the rear wing flap, each
+serving a distinct interaction:
+Pit Stop Component Replacement: The user picks up a tire or front wing from the garage floor using a key
+press and carries it toward the car. When the held component is brought sufficiently close to its mounting
+point on the vehicle, it automatically snaps into place, updating the car’s model state. This proximity-based
+snapping is implemented via distance checks in the transformation matrix pipeline.
+Cockpit View & Steering Synchronization: The user can move the camera inside the driver’s cockpit. From
+this viewpoint, pressing the left/right keys rotates the steering wheel. Using a parent-child hierarchy in the
+scene’s transformation matrix stack, the front tires are linked as child nodes of the steering wheel, so their
+yaw rotation stays synchronized with the wheel’s rotation automatically.
+Drag Reduction System (DRS): A dedicated key press toggles the DRS. The rear wing flap, modeled as a
+separate mesh segment, rotates along its local X-axis to its open or closed position, demonstrating
+independent local transformations on a child node within the car’s hierarchical model.
+Lighting is handled via the Phong reflection model implemented in GLSL fragment shaders. A main garage spotlight
+serves as the primary light source; the user can reposition it across the scene using keyboard controls and adjust its
+brightness up or down, producing visible specular highlights and shading changes on the car’s metallic surfaces in
+real time.
